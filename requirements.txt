@@ -1,0 +1,2 @@
+requests==2.28.1
+ruamel.yaml.string==0.1.0
