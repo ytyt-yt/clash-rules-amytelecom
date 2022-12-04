@@ -11,11 +11,21 @@ PROXY_NAME = 'AmyTelecom'
 URL = "https://api.nxtlnodes.com/Subscription/Clash"
 
 
-def load_clash_rules(file_path):
-    with open(file_path, 'r') as f:
+def load_clash_rules(clash_rule_path, user_rule_path=None):
+    with open(clash_rule_path, 'r') as f:
         s = f.read()
         s = s.replace('PROXY', PROXY_NAME)
         rules = yaml.load(s)
+    if user_rule_path is not None:
+        with open(user_rule_path, 'r') as f:
+            s = f.read()
+            s = s.replace('PROXY', PROXY_NAME)
+            user_rules = yaml.load(s)
+
+        rules['whitelist-rules'] = rules['whitelist-rules'][:-1] \
+            + user_rules['user-rules'] + rules['whitelist-rules'][-1:]
+        rules['blacklist-rules'] = rules['blacklist-rules'][:-1] \
+            + user_rules['user-rules'] + rules['blacklist-rules'][-1:]
     return rules
 
 
@@ -84,6 +94,6 @@ if __name__ == '__main__':
         '--output', '-o', type=str, help="Output Filename")
     args = parser.parse_args()
 
-    rules = load_clash_rules('./clash-rules.yaml')
+    rules = load_clash_rules('./clash-rules.yaml', './user-rules.yaml')
     patch(subscription_url=args.url, mode=args.mode,
           output_fn=args.output, clash_rules=rules)

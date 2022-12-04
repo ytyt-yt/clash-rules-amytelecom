@@ -1,7 +1,7 @@
 from patch import patch, load_clash_rules
 
 
-CLASH_RULES = load_clash_rules('clash-rules.yaml')
+CLASH_RULES = load_clash_rules('clash-rules.yaml', 'user-rules.yaml')
 
 
 def lambda_handler(event, context):
