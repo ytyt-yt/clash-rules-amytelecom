@@ -1,5 +1,5 @@
+from copy import deepcopy
 import requests
-from urllib.parse import urlparse, parse_qs
 from ruamel.yaml import YAML
 
 
@@ -8,7 +8,7 @@ yaml.indent(sequence=4, offset=2)
 
 
 PROXY_NAME = 'AmyTelecom'
-URL = "https://api.nxtlnodes.com/Subscription/Clash"
+URL = "https://ghvpie.xyz/?"
 
 
 def load_clash_rules(clash_rule_path, user_rule_path=None):
@@ -30,25 +30,57 @@ def load_clash_rules(clash_rule_path, user_rule_path=None):
 
 
 def patch(
-        sid=None, token=None,
+        token=None,
         subscription_url=None,
         clash_rules=None,
         mode="blacklist",
         output_fn=None):
 
     if subscription_url is not None:
-        qs = parse_qs(urlparse(subscription_url).query)
-        sid = qs['sid'][0]
-        token = qs['token'][0]
-    assert None not in (sid, token, clash_rules)
+        token = subscription_url.split('/?')[-1]
+    assert None not in (token, clash_rules)
 
-    r = requests.get(URL, params={'sid': sid, 'token': token})
+    r = requests.get(URL + token)
     r.encoding = 'utf-8'
     sub_info = r.headers['subscription-userinfo']
 
     cfg = yaml.load(r.text.encode('utf-8'))
+
+    cfg["dns"]["listen"] = "0.0.0.0:1053"
+
+    cfg['rules'] = []
+    if 'extra-rules' in clash_rules:
+        cfg['rules'].extend(clash_rules['extra-rules'])
+    cfg['rules'].extend(clash_rules[f'{mode}-rules'])
+
+    all_rule_providers = clash_rules['rule-providers']
+    if 'extra-rule-providers' in clash_rules:
+        all_rule_providers.update(clash_rules['extra-rule-providers'])
+    cfg['rule-providers'] = {}
+    for r in cfg['rules']:
+        t = r.split(',')
+        if t[0] == 'RULE-SET':
+            cfg['rule-providers'][t[1]] = all_rule_providers[t[1]]
+
+    # proxy-groups
     proxy_name = cfg['proxy-groups'][0]['name']
     assert proxy_name == PROXY_NAME
+
+    p_grps = [cfg['proxy-groups'][0]]
+
+    if 'Auto' in cfg['proxy-groups'][1]['name']:
+        p_grps.append(cfg['proxy-groups'][1])
+
+    pg_tmpl = deepcopy(cfg['proxy-groups'][3])
+    assert len(pg_tmpl['proxies']) > 5
+    if pg_tmpl['proxies'][0] == PROXY_NAME and pg_tmpl['proxies'][1] == "DIRECT":
+        pg_tmpl['proxies'][0], pg_tmpl['proxies'][1] = \
+            pg_tmpl['proxies'][1], pg_tmpl['proxies'][0]
+    if 'extra-rules' in clash_rules:
+        for r in clash_rules['extra-rules']:
+            epg = deepcopy(pg_tmpl)
+            epg['name'] = r.split(',')[-1]
+            p_grps.append(epg)
 
     assert cfg['proxy-groups'][-1]['name'] == 'Final'
     if mode == 'blacklist':
@@ -58,19 +90,10 @@ def patch(
     elif mode == 'whitelist':
         cfg['proxy-groups'][-1]['name'] = 'Final-White'
 
-    cfg['proxy-groups'] = [cfg['proxy-groups'][0], cfg['proxy-groups'][-1]]
+    p_grps.append(cfg['proxy-groups'][-1])
 
-    cfg['rule-providers'] = clash_rules['rule-providers']
-    if mode == 'blacklist':
-        cfg['rules'] = clash_rules['blacklist-rules']
-    elif mode == 'whitelist':
-        cfg['rules'] = clash_rules['whitelist-rules']
+    cfg['proxy-groups'] = p_grps
 
-    cfg['rule-providers'] = {}
-    for r in cfg['rules']:
-        t = r.split(',')
-        if t[0] == 'RULE-SET':
-            cfg['rule-providers'][t[1]] = clash_rules['rule-providers'][t[1]]
     cfg.move_to_end('rules')
 
     if output_fn is not None:
