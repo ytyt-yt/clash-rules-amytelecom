@@ -130,7 +130,7 @@ extra-rule-providers:
   netflix:
     type: http
     behavior: classical
-    url: "https://fastly.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Netflix/Netflix_Classical.yaml"
+    url: "https://fastly.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Clash/Netflix/Netflix_Classical.yaml"
     path: ./ruleset/extra-netflix.yaml
     interval: 86400
 
